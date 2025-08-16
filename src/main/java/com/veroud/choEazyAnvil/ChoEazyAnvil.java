@@ -26,7 +26,7 @@ public final class ChoEazyAnvil extends JavaPlugin implements Listener {
         extraCostPerLevel = getConfig().getInt("extra-cost-per-level", 5);
         getServer().getPluginManager().registerEvents(this, this);
 
-        // Scalable enchants
+        // Define scalable enchants
         scalableEnchants.add(Enchantment.SHARPNESS);
         scalableEnchants.add(Enchantment.SMITE);
         scalableEnchants.add(Enchantment.BANE_OF_ARTHROPODS);
@@ -47,11 +47,9 @@ public final class ChoEazyAnvil extends JavaPlugin implements Listener {
         ItemStack second = inv.getItem(1);
         if (first == null || second == null) return;
 
-        ItemStack result = event.getResult();
-        if (result == null) return;
-        result = result.clone();
+        ItemStack result = first.clone();
 
-        // Read enchants from items or books
+        // Get all enchantments from both items
         Map<Enchantment, Integer> firstEnchants = (first.getItemMeta() instanceof EnchantmentStorageMeta meta1)
                 ? meta1.getStoredEnchants() : first.getEnchantments();
 
@@ -60,37 +58,40 @@ public final class ChoEazyAnvil extends JavaPlugin implements Listener {
 
         int extraCost = 0;
 
-        for (Map.Entry<Enchantment, Integer> entry : secondEnchants.entrySet()) {
+        // Add all first item enchants to result
+        for (Map.Entry<Enchantment, Integer> entry : firstEnchants.entrySet()) {
             Enchantment ench = entry.getKey();
             int level = entry.getValue();
-            int newLevel = level;
+            result.removeEnchantment(ench);
+            result.addUnsafeEnchantment(ench, level);
+        }
+
+        // Merge second item enchants
+        for (Map.Entry<Enchantment, Integer> entry : secondEnchants.entrySet()) {
+            Enchantment ench = entry.getKey();
+            int secondLevel = entry.getValue();
+            int newLevel = secondLevel;
 
             if (firstEnchants.containsKey(ench)) {
-                newLevel = Math.max(level, firstEnchants.get(ench));
-                if (level == firstEnchants.get(ench)) newLevel++; // vanilla combine rule
+                int firstLevel = firstEnchants.get(ench);
+                newLevel = Math.max(firstLevel, secondLevel);
+                if (firstLevel == secondLevel) newLevel++; // vanilla combine rule
             }
 
-            if (scalableEnchants.contains(ench)) {
-                if (newLevel > maxLevel) newLevel = maxLevel;
+            if (scalableEnchants.contains(ench) && newLevel > maxLevel) newLevel = maxLevel;
 
-                result.removeEnchantment(ench);
-                result.addUnsafeEnchantment(ench, newLevel);
+            result.removeEnchantment(ench);
+            result.addUnsafeEnchantment(ench, newLevel);
 
-                if (newLevel > ench.getMaxLevel()) {
-                    extraCost += (newLevel - ench.getMaxLevel()) * extraCostPerLevel;
-                }
-
-            } else {
-                result.removeEnchantment(ench);
-                result.addEnchantment(ench, Math.min(newLevel, ench.getMaxLevel()));
+            // Extra cost for above-vanilla levels
+            if (newLevel > ench.getMaxLevel()) {
+                extraCost += (newLevel - ench.getMaxLevel()) * extraCostPerLevel;
             }
         }
 
-        // Apply repair cost WITHOUT any cap to lift "Too Expensive!"
         int baseCost = inv.getRepairCost();
         inv.setRepairCost(baseCost + extraCost);
 
-        // Set the result
         event.setResult(result);
     }
 }
