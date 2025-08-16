@@ -1,0 +1,6 @@
+name: ChoEazyAnvil
+version: '1.0-SNAPSHOT'
+main: com.veroud.choEazyAnvil.ChoEazyAnvil
+api-version: '1.21'
+authors: [ Aidan Heaslip ]
+description: Uncap the max enchant levels! (Only on scaling enchants)
