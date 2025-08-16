@@ -16,15 +16,17 @@ import java.util.Set;
 public final class ChoEazyAnvil extends JavaPlugin implements Listener {
 
     private int maxLevel;
+    private int extraCostPerLevel;
     private final Set<Enchantment> scalableEnchants = new HashSet<>();
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
         maxLevel = getConfig().getInt("max-enchant-level", 10);
+        extraCostPerLevel = getConfig().getInt("extra-cost-per-level", 5);
         getServer().getPluginManager().registerEvents(this, this);
 
-        // Define scalable enchants (modern API names)
+        // Scalable enchants
         scalableEnchants.add(Enchantment.SHARPNESS);
         scalableEnchants.add(Enchantment.SMITE);
         scalableEnchants.add(Enchantment.BANE_OF_ARTHROPODS);
@@ -41,25 +43,20 @@ public final class ChoEazyAnvil extends JavaPlugin implements Listener {
     @EventHandler
     public void onPrepareAnvil(PrepareAnvilEvent event) {
         AnvilInventory inv = event.getInventory();
-        ItemStack first = inv.getItem(0);  // left slot
-        ItemStack second = inv.getItem(1); // right slot
+        ItemStack first = inv.getItem(0);
+        ItemStack second = inv.getItem(1);
         if (first == null || second == null) return;
 
-        // Clone the vanilla result so we can safely modify it
         ItemStack result = event.getResult();
         if (result == null) return;
         result = result.clone();
 
-        Map<Enchantment, Integer> firstEnchants = first.getEnchantments();
-        Map<Enchantment, Integer> secondEnchants = second.getEnchantments();
+        // Read enchants from items or books
+        Map<Enchantment, Integer> firstEnchants = (first.getItemMeta() instanceof EnchantmentStorageMeta meta1)
+                ? meta1.getStoredEnchants() : first.getEnchantments();
 
-        // Handle enchanted books too
-        if (first.getItemMeta() instanceof EnchantmentStorageMeta meta1) {
-            firstEnchants = meta1.getStoredEnchants();
-        }
-        if (second.getItemMeta() instanceof EnchantmentStorageMeta meta2) {
-            secondEnchants = meta2.getStoredEnchants();
-        }
+        Map<Enchantment, Integer> secondEnchants = (second.getItemMeta() instanceof EnchantmentStorageMeta meta2)
+                ? meta2.getStoredEnchants() : second.getEnchantments();
 
         int extraCost = 0;
 
@@ -70,22 +67,17 @@ public final class ChoEazyAnvil extends JavaPlugin implements Listener {
 
             if (firstEnchants.containsKey(ench)) {
                 newLevel = Math.max(level, firstEnchants.get(ench));
-                if (level == firstEnchants.get(ench)) {
-                    newLevel++; // vanilla rule: equal levels combine +1
-                }
+                if (level == firstEnchants.get(ench)) newLevel++; // vanilla combine rule
             }
 
             if (scalableEnchants.contains(ench)) {
                 if (newLevel > maxLevel) newLevel = maxLevel;
 
-                // overwrite any vanilla-applied enchant
                 result.removeEnchantment(ench);
                 result.addUnsafeEnchantment(ench, newLevel);
 
-                // Add extra XP cost for levels above vanilla
                 if (newLevel > ench.getMaxLevel()) {
-                    extraCost += (newLevel - ench.getMaxLevel())
-                            * getConfig().getInt("extra-cost-per-level", 5);
+                    extraCost += (newLevel - ench.getMaxLevel()) * extraCostPerLevel;
                 }
 
             } else {
@@ -94,11 +86,11 @@ public final class ChoEazyAnvil extends JavaPlugin implements Listener {
             }
         }
 
-        // Apply cost adjustment
+        // Apply repair cost WITHOUT any cap to lift "Too Expensive!"
         int baseCost = inv.getRepairCost();
         inv.setRepairCost(baseCost + extraCost);
 
-        // Push our corrected result back into the anvil
+        // Set the result
         event.setResult(result);
     }
 }
