@@ -1,0 +1,5 @@
+# Maximum enchantment level allowed by this plugin
+max-enchant-level: 12
+# How much extra XP each level above vanilla costs
+extra-cost-per-level: 5
+
